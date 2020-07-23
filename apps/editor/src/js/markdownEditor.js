@@ -124,7 +124,7 @@ class MarkdownEditor extends CodeMirrorExt {
       extraKeys: {
         Enter: 'newlineAndIndentContinueMarkdownList',
         Tab: () => this._onPressTabKey(),
-        'Shift-Tab': 'indentLessOrderedList',
+        'Shift-Tab': () => this._onPressShiftTabKey(),
         'Shift-Ctrl-X': () => this._toggleTaskStates()
       },
       viewportMargin: options && options.height === 'auto' ? Infinity : 10
@@ -508,6 +508,19 @@ class MarkdownEditor extends CodeMirrorExt {
     }
   }
 
+  _onPressShiftTabKey() {
+    const { line, ch } = this.cm.getCursor();
+    const mdCh = this.cm.getLine(line).length === ch ? ch : ch + 1;
+    const mdNode = this.toastMark.findNodeAtPosition([line + 1, mdCh]);
+    const cellNode = findClosestNode(mdNode, node => isTableCellNode(node));
+
+    if (cellNode) {
+      this._moveCursorPrevCell(cellNode);
+    } else {
+      this.cm.execCommand('indentLessOrderedList');
+    }
+  }
+
   _moveCursorNextCell(currentCell) {
     let line = getMdStartLine(currentCell);
     let ch = 0;
@@ -524,6 +537,24 @@ class MarkdownEditor extends CodeMirrorExt {
     }
 
     this.cm.setCursor({ line, ch });
+  }
+
+  _moveCursorPrevCell(currentCell) {
+    let line = getMdStartLine(currentCell);
+    let ch = 0;
+
+    if (currentCell.prev) {
+      ch = getMdStartCh(currentCell.prev);
+    } else {
+      const prevRow = this.toastMark.findNodeAtPosition([line - 1, 1]);
+
+      if (prevRow && isTableRowNode(prevRow)) {
+        line = line - 1;
+        ch = getMdStartCh(prevRow.lastChild);
+      }
+    }
+
+    this.cm.setCursor({ line: line - 1, ch });
   }
 
   /**
