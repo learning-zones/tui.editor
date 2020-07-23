@@ -12,6 +12,8 @@ import MdTextObject from './mdTextObject';
 import {
   traverseParentNodes,
   isStyledTextNode,
+  isTableRowNode,
+  isTableCellNode,
   getMdStartLine,
   getMdEndLine,
   getMdStartCh,
@@ -121,7 +123,7 @@ class MarkdownEditor extends CodeMirrorExt {
       allowDropFileTypes: ['image'],
       extraKeys: {
         Enter: 'newlineAndIndentContinueMarkdownList',
-        Tab: 'indentOrderedList',
+        Tab: () => this._onPressTabKey(),
         'Shift-Tab': 'indentLessOrderedList',
         'Shift-Ctrl-X': () => this._toggleTaskStates()
       },
@@ -491,6 +493,37 @@ class MarkdownEditor extends CodeMirrorExt {
     }
 
     this._setToolbarState(state);
+  }
+
+  _onPressTabKey() {
+    const { line, ch } = this.cm.getCursor();
+    const mdCh = this.cm.getLine(line).length === ch ? ch : ch + 1;
+    const mdNode = this.toastMark.findNodeAtPosition([line + 1, mdCh]);
+    const cellNode = findClosestNode(mdNode, node => isTableCellNode(node));
+
+    if (cellNode) {
+      this._moveCursorNextCell(cellNode);
+    } else {
+      this.cm.execCommand('indentOrderedList');
+    }
+  }
+
+  _moveCursorNextCell(currentCell) {
+    let line = getMdStartLine(currentCell);
+    let ch = 0;
+
+    if (currentCell.next) {
+      line = line - 1;
+      ch = getMdStartCh(currentCell.next);
+    } else {
+      const nextRow = this.toastMark.findNodeAtPosition([line + 1, 1]);
+
+      if (nextRow && isTableRowNode(nextRow)) {
+        ch = getMdStartCh(nextRow.firstChild);
+      }
+    }
+
+    this.cm.setCursor({ line, ch });
   }
 
   /**
